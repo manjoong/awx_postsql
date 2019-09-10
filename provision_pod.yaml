@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-configmap
+data:
+  entrypoint.sh: |-
+    #!/bin/bash
+    echo "Do this"
+    rc-service sshd restart
+    while true; do sleep 30; done;
+    echo "Do that"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: provision-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provision-deployment
+  template:
+    metadata:
+      name: provision-deployment-pod
+      labels:
+        app: provision-deployment
+    spec:
+      containers:
+      - name: provision-deployment
+        image: harbor.ops.action.cloudz.co.kr/iks_provision/provision:1.0
+        # Just spin & wait forever
+        command:
+        - /bin/entrypoint.sh
+        volumeMounts:
+        - mountPath: /bin/entrypoint.sh
+          name: configmap-volume
+          readOnly: true
+          subPath: entrypoint.sh
+       # command: [ "/bin/bash", "-c" ]
+       # args: [ "while true; do sleep 30; done;" ]
+       # imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        - containerPort: 22
+      nodeSelector:
+        proxy: "true"
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: dedicated
+        operator: Equal
+        value: infra
+      volumes:
+        - name: configmap-volume
+          configMap:
+            defaultMode: 0700
+            name: my-configmap
