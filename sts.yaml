@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  creationTimestamp: "2019-08-26T02:15:51Z"
+  generation: 1
+  labels:
+    app: postgresql
+    chart: postgresql-3.7.1
+    heritage: Tiller
+    release: multi-awx
+  name: multi-awx-postgresql
+  namespace: provision-awx
+  resourceVersion: "4618835"
+  selfLink: /apis/apps/v1/namespaces/provision-awx/statefulsets/multi-awx-postgresql
+  uid: 6cf1c273-c7a7-11e9-baa2-06d6b0d64a77
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: postgresql
+      release: multi-awx
+      role: master
+  serviceName: multi-awx-postgresql-headless
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: postgresql
+        chart: postgresql-3.7.1
+        heritage: Tiller
+        release: multi-awx
+        role: master
+      name: multi-awx-postgresql
+    spec:
+      containers:
+      - env:
+        - name: POSTGRESQL_USERNAME
+          value: postgres
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: multi-awx-postgresql
+        - name: POSTGRESQL_DATABASE
+          value: awx
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        image: docker.io/bitnami/postgresql:9.6
+        imagePullPolicy: Always
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - exec pg_isready -U "postgres" --host $POD_IP
+          failureThreshold: 6
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: multi-awx-postgresql
+        ports:
+        - containerPort: 5432
+          name: postgresql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - exec pg_isready -U "postgres" --host $POD_IP
+          failureThreshold: 6
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /bitnami/postgresql
+          name: data
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          chown -R 1001:1001 /bitnami
+          if [ -d /bitnami/postgresql/data ]; then
+            chmod  0700 /bitnami/postgresql/data;
+          fi
+        image: docker.io/bitnami/minideb:latest
+        imagePullPolicy: Always
+        name: init-chmod-data
+        resources: {}
+        securityContext:
+          procMount: Default
+          runAsUser: 0
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /bitnami/postgresql
+          name: data
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+      terminationGracePeriodSeconds: 30
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      creationTimestamp: null
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      dataSource: null
+      resources:
+        requests:
+          storage: 8Gi
+      storageClassName: file-storage-dvp
+      volumeMode: Filesystem
